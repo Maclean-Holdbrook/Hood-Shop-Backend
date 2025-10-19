@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(tasklist:*)",
+      "Bash(powershell \"Get-Process -Id 36368 | Select-Object Id, ProcessName, Path\")",
+      "Bash(taskkill:*)",
+      "Bash(powershell \"Stop-Process -Id 36368 -Force\")",
+      "Bash(git init)",
+      "Bash(git remote add origin https://github.com/Maclean-Holdbrook/Hood-Shop-Backend.git)",
+      "Bash(git add .)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
