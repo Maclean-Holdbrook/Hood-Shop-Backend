@@ -29,6 +29,14 @@ router.post('/', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Complete shipping address is required' });
     }
 
+    if (!shipping_address.country) {
+      return res.status(400).json({ error: 'Country is required' });
+    }
+
+    if (!shipping_address.phoneCode || !shipping_address.phone) {
+      return res.status(400).json({ error: 'Phone number with country code is required' });
+    }
+
     if (!total_amount || total_amount <= 0) {
       return res.status(400).json({ error: 'Invalid order total' });
     }
@@ -42,8 +50,9 @@ router.post('/', authenticateToken, async (req, res) => {
       city: shipping_address.city,
       state: shipping_address.state,
       zip_code: shipping_address.zipCode,
-      country: shipping_address.country || 'United States',
-      phone: shipping_address.phone || null
+      country: shipping_address.country,
+      phone_code: shipping_address.phoneCode,
+      phone: shipping_address.phone
     };
 
     // Create order
@@ -272,7 +281,7 @@ router.post('/', authenticateToken, async (req, res) => {
                   <h3>Customer Information</h3>
                   <p><strong>Name:</strong> ${shipping_address.fullName}</p>
                   <p><strong>Email:</strong> ${shipping_address.email}</p>
-                  <p><strong>Phone:</strong> ${shipping_address.phone || 'N/A'}</p>
+                  <p><strong>Phone:</strong> ${formattedShippingAddress.phone_code ? `${formattedShippingAddress.phone_code} ${formattedShippingAddress.phone}` : 'N/A'}</p>
                 </div>
 
                 <div class="order-box">

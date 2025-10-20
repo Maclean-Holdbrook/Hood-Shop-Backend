@@ -18,7 +18,7 @@ export const authenticateToken = async (req, res, next) => {
     // Verify user still exists in database
     const { data: users } = await supabaseAdmin
       .from('users')
-      .select('id, email, name')
+      .select('id, email, name, phone_code, phone, address, city, state, zip_code, country, avatar_url')
       .eq('id', decoded.userId);
 
     if (!users || users.length === 0) {
@@ -28,7 +28,21 @@ export const authenticateToken = async (req, res, next) => {
       });
     }
 
-    req.user = users[0];
+    // Convert snake_case to camelCase for consistency
+    const user = users[0];
+    req.user = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      phoneCode: user.phone_code,
+      phone: user.phone,
+      address: user.address,
+      city: user.city,
+      state: user.state,
+      zipCode: user.zip_code,
+      country: user.country,
+      avatarUrl: user.avatar_url
+    };
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {
@@ -67,10 +81,27 @@ export const optionalAuth = async (req, res, next) => {
 
     const { data: users } = await supabaseAdmin
       .from('users')
-      .select('id, email, name')
+      .select('id, email, name, phone_code, phone, address, city, state, zip_code, country, avatar_url')
       .eq('id', decoded.userId);
 
-    req.user = users && users.length > 0 ? users[0] : null;
+    if (users && users.length > 0) {
+      const user = users[0];
+      req.user = {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        phoneCode: user.phone_code,
+        phone: user.phone,
+        address: user.address,
+        city: user.city,
+        state: user.state,
+        zipCode: user.zip_code,
+        country: user.country,
+        avatarUrl: user.avatar_url
+      };
+    } else {
+      req.user = null;
+    }
     next();
   } catch (error) {
     // If token is invalid, just set user to null and continue

@@ -172,7 +172,14 @@ router.get('/me', authenticateToken, async (req, res) => {
 // Update user profile
 router.put('/profile', authenticateToken, [
   body('name').optional().trim().isLength({ min: 2 }),
-  body('email').optional().isEmail().normalizeEmail()
+  body('email').optional().isEmail().normalizeEmail(),
+  body('phoneCode').optional().trim(),
+  body('phone').optional().trim(),
+  body('address').optional().trim(),
+  body('city').optional().trim(),
+  body('state').optional().trim(),
+  body('zipCode').optional().trim(),
+  body('country').optional().trim()
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -183,58 +190,72 @@ router.put('/profile', authenticateToken, [
       });
     }
 
-    const { name, email } = req.body;
-    const updates = [];
-    const values = [];
-    let paramCount = 1;
+    const { name, email, phoneCode, phone, address, city, state, zipCode, country } = req.body;
+    const updates = {};
 
-    if (name) {
-      updates.push(`name = $${paramCount++}`);
-      values.push(name);
-    }
-
-    if (email) {
+    // Build update object with only provided fields
+    if (name !== undefined) updates.name = name;
+    if (email !== undefined) {
       // Check if email is already taken by another user
-      const client = await pool.connect();
-      const existingUser = await client.query(
-        'SELECT id FROM users WHERE email = $1 AND id != $2',
-        [email, req.user.id]
-      );
+      const { data: existingUsers } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .eq('email', email)
+        .neq('id', req.user.id);
 
-      if (existingUser.rows.length > 0) {
-        client.release();
+      if (existingUsers && existingUsers.length > 0) {
         return res.status(400).json({
           error: 'Email already taken',
           message: 'This email is already associated with another account'
         });
       }
-
-      updates.push(`email = $${paramCount++}`);
-      values.push(email);
+      updates.email = email;
     }
+    if (phoneCode !== undefined) updates.phone_code = phoneCode;
+    if (phone !== undefined) updates.phone = phone;
+    if (address !== undefined) updates.address = address;
+    if (city !== undefined) updates.city = city;
+    if (state !== undefined) updates.state = state;
+    if (zipCode !== undefined) updates.zip_code = zipCode;
+    if (country !== undefined) updates.country = country;
 
-    if (updates.length === 0) {
+    if (Object.keys(updates).length === 0) {
       return res.status(400).json({
         error: 'No updates provided',
         message: 'At least one field must be provided for update'
       });
     }
 
-    const client = await pool.connect();
-    values.push(req.user.id);
-    const updateQuery = `
-      UPDATE users 
-      SET ${updates.join(', ')}, updated_at = NOW() 
-      WHERE id = $${paramCount} 
-      RETURNING id, email, name
-    `;
+    // Update user in Supabase
+    const { data: updatedUser, error: updateError } = await supabaseAdmin
+      .from('users')
+      .update(updates)
+      .eq('id', req.user.id)
+      .select('id, email, name, phone_code, phone, address, city, state, zip_code, country')
+      .single();
 
-    const updatedUser = await client.query(updateQuery, values);
-    client.release();
+    if (updateError) {
+      console.error('Supabase update error:', updateError);
+      throw updateError;
+    }
+
+    // Return user data with camelCase field names
+    const userData = {
+      id: updatedUser.id,
+      email: updatedUser.email,
+      name: updatedUser.name,
+      phoneCode: updatedUser.phone_code,
+      phone: updatedUser.phone,
+      address: updatedUser.address,
+      city: updatedUser.city,
+      state: updatedUser.state,
+      zipCode: updatedUser.zip_code,
+      country: updatedUser.country
+    };
 
     res.json({
       message: 'Profile updated successfully',
-      user: updatedUser.rows[0]
+      user: userData
     });
   } catch (error) {
     console.error('Update profile error:', error);
@@ -262,24 +283,23 @@ router.put('/password', authenticateToken, [
     const { currentPassword, newPassword } = req.body;
 
     // Get current password hash
-    const client = await pool.connect();
-    const user = await client.query(
-      'SELECT password_hash FROM users WHERE id = $1',
-      [req.user.id]
-    );
+    const { data: users } = await supabaseAdmin
+      .from('users')
+      .select('id, password_hash')
+      .eq('id', req.user.id);
 
-    if (user.rows.length === 0) {
-      client.release();
+    if (!users || users.length === 0) {
       return res.status(404).json({
         error: 'User not found',
         message: 'User account not found'
       });
     }
 
+    const user = users[0];
+
     // Verify current password
-    const isValidPassword = await bcrypt.compare(currentPassword, user.rows[0].password_hash);
+    const isValidPassword = await bcrypt.compare(currentPassword, user.password_hash);
     if (!isValidPassword) {
-      client.release();
       return res.status(401).json({
         error: 'Invalid password',
         message: 'Current password is incorrect'
@@ -291,12 +311,15 @@ router.put('/password', authenticateToken, [
     const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
 
     // Update password
-    await client.query(
-      'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
-      [newPasswordHash, req.user.id]
-    );
+    const { error: updateError } = await supabaseAdmin
+      .from('users')
+      .update({ password_hash: newPasswordHash })
+      .eq('id', req.user.id);
 
-    client.release();
+    if (updateError) {
+      console.error('Password update error:', updateError);
+      throw updateError;
+    }
 
     res.json({
       message: 'Password updated successfully'
