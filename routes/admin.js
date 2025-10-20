@@ -226,6 +226,21 @@ router.put('/products/:productId', authenticateAdmin, async (req, res) => {
     delete updateData.created_at;
     delete updateData.created_by;
 
+    // Don't update images if it's an empty array or undefined (preserve existing images)
+    // Only update images if explicitly provided with content
+    if (updateData.images !== undefined && (!Array.isArray(updateData.images) || updateData.images.length === 0)) {
+      // Get existing product to preserve images
+      const { data: existingProduct } = await supabaseAdmin
+        .from('products')
+        .select('images')
+        .eq('id', productId)
+        .single();
+
+      if (existingProduct && existingProduct.images) {
+        updateData.images = existingProduct.images;
+      }
+    }
+
     const { data: product, error } = await supabaseAdmin
       .from('products')
       .update(updateData)
