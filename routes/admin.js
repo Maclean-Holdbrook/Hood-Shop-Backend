@@ -266,17 +266,42 @@ router.delete('/products/:productId', authenticateAdmin, async (req, res) => {
   try {
     const { productId } = req.params;
 
-    const { error } = await supabaseAdmin
+    // Check if product exists first
+    const { data: existingProduct, error: fetchError } = await supabaseAdmin
+      .from('products')
+      .select('id, name')
+      .eq('id', productId)
+      .single();
+
+    if (fetchError || !existingProduct) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    // Delete the product
+    const { data, error } = await supabaseAdmin
       .from('products')
       .delete()
-      .eq('id', productId);
+      .eq('id', productId)
+      .select();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Delete error details:', error);
+      // Check if it's a foreign key constraint error
+      if (error.code === '23503') {
+        return res.status(400).json({
+          error: 'Cannot delete product. It may be referenced in existing orders. Please archive it instead.'
+        });
+      }
+      throw error;
+    }
 
-    res.json({ message: 'Product deleted successfully' });
+    res.json({ message: 'Product deleted successfully', product: existingProduct });
   } catch (error) {
     console.error('Error deleting product:', error);
-    res.status(500).json({ error: 'Failed to delete product' });
+    res.status(500).json({
+      error: error.message || 'Failed to delete product',
+      details: error.hint || error.details
+    });
   }
 });
 
