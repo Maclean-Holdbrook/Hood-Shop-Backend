@@ -151,22 +151,35 @@ const startServer = async () => {
     // Initialize database connection (Supabase)
     await initializeDatabase();
 
-    // Start server
-    httpServer.listen(PORT, () => {
-      console.log(`🚀 Hood Shop Backend API running on port ${PORT}`);
-      console.log(`📊 Health check: http://localhost:${PORT}/health`);
-      console.log(`🌐 API base URL: http://localhost:${PORT}/api`);
-      console.log(`🔌 WebSocket server running`);
-      console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
+    // Start server only if not in Vercel serverless environment
+    if (process.env.VERCEL !== '1') {
+      httpServer.listen(PORT, () => {
+        console.log(`🚀 Hood Shop Backend API running on port ${PORT}`);
+        console.log(`📊 Health check: http://localhost:${PORT}/health`);
+        console.log(`🌐 API base URL: http://localhost:${PORT}/api`);
+        console.log(`🔌 WebSocket server running`);
+        console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
+        console.log(`💾 Database: Supabase`);
+        console.log(`📝 Run schema.sql in Supabase SQL Editor to create tables`);
+      });
+    } else {
+      console.log('🚀 Running on Vercel serverless');
       console.log(`💾 Database: Supabase`);
-      console.log(`📝 Run schema.sql in Supabase SQL Editor to create tables`);
-    });
+    }
   } catch (error) {
     console.error('❌ Failed to start server:', error);
-    process.exit(1);
+    if (process.env.VERCEL !== '1') {
+      process.exit(1);
+    }
   }
 };
 
-startServer();
+// Initialize database on startup
+initializeDatabase().catch(console.error);
+
+// Only start server if not on Vercel
+if (process.env.VERCEL !== '1') {
+  startServer();
+}
 
 export default app;
